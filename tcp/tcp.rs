@@ -1,5 +1,7 @@
+use std::fs;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpStream;
+use std::path::Path;
 
 pub fn handle_client(mut stream: TcpStream) {
     let mut buffer = [0; 1024];
@@ -9,6 +11,11 @@ pub fn handle_client(mut stream: TcpStream) {
     let request = String::from_utf8_lossy(&buffer[..]);
     println!("Received request{}", request);
 
-    let response = "Hello client".as_bytes();
-    stream.write(response).expect("Failed to write response");
+    let status_line = "HTTP/1.1 200 OK";
+    let contents = fs::read_to_string(Path::new("hello.html")).unwrap();
+    let length = contents.len();
+
+    let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+
+    stream.write_all(response.as_bytes()).unwrap();
 }
