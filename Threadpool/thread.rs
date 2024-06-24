@@ -3,7 +3,7 @@ use std::{
     error::Error,
     fmt::Debug,
     sync::{
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Sender},
         Arc, Mutex,
     },
     thread, usize,
@@ -18,7 +18,7 @@ pub struct Threadpool {
 
 pub struct Worker {
     id: usize,
-    thread: thread::JoinHandle<Arc<Mutex<Receiver<Job>>>>,
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 #[derive(Debug)]
@@ -59,17 +59,40 @@ impl Threadpool {
         })
     }
 }
-
 impl Worker {
-    fn new(id: usize, rx: Arc<Mutex<Receiver<Job>>>) -> Worker {
-        let threads = thread::spawn(move || loop {
-            let receiver = rx.lock().unwrap().recv().unwrap();
-            print!("Worker {id} got a job; Executing Job");
-            receiver();
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+        let thread = thread::spawn(move || loop {
+            let message = receiver.lock().unwrap().recv();
+
+            match message {
+                Ok(job) => {
+                    println!("Worker {id} got a job; executing.");
+
+                    job();
+                }
+                Err(_) => {
+                    println!("Worker {id} disconnected; shutting down.");
+                    break;
+                }
+            }
         });
+
         Worker {
             id,
-            thread: threads,
+            thread: Some(thread),
+        }
+    }
+}
+
+impl Drop for Threadpool {
+    fn drop(&mut self) {
+        for worker in &mut self.threads {
+            println!("TCP is shutting Down now");
+            println!("Threads will stop receiving");
+            println!("Shutting down Working {}", worker.id);
+            if let Some(thread) = worker.thread.take() {
+                thread.join().unwrap();
+            }
         }
     }
 }
