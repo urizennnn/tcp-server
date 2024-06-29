@@ -3,17 +3,17 @@ use std::{
     error::Error,
     fmt::Debug,
     sync::{
-        mpsc::{self, Sender},
+        mpsc::{self, Receiver, Sender},
         Arc, Mutex,
     },
-    thread, usize,
+    thread,
 };
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
 pub struct Threadpool {
     threads: Vec<Worker>,
-    sender: Sender<Job>,
+    sender: Sender<Message>,
 }
 
 pub struct Worker {
@@ -38,19 +38,20 @@ impl Threadpool {
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
-        self.sender.send(job).unwrap();
+        self.sender.send(Message::NewJob(job)).unwrap();
     }
 
     pub fn build(size: usize) -> Result<Threadpool, PoolCreationError> {
         if size == 0 {
             return Err(PoolCreationError);
         }
+
         let (tx, rx) = mpsc::channel();
         let receiver = Arc::new(Mutex::new(rx));
         let mut threads = Vec::with_capacity(size);
 
-        for _ in 0..size {
-            threads.push(Worker::new(size, Arc::clone(&receiver)));
+        for id in 0..size {
+            threads.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
         Ok(Threadpool {
@@ -59,16 +60,21 @@ impl Threadpool {
         })
     }
 }
+
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+    fn new(id: usize, receiver: Arc<Mutex<Receiver<Message>>>) -> Worker {
         let thread = thread::spawn(move || loop {
             let message = receiver.lock().unwrap().recv();
 
             match message {
-                Ok(job) => {
+                Ok(Message::NewJob(job)) => {
                     println!("Worker {id} got a job; executing.");
 
                     job();
+                }
+                Ok(Message::Terminate) => {
+                    println!("Worker {id} was told to terminate.");
+                    break;
                 }
                 Err(_) => {
                     println!("Worker {id} disconnected; shutting down.");
@@ -86,13 +92,23 @@ impl Worker {
 
 impl Drop for Threadpool {
     fn drop(&mut self) {
+        println!("Sending termination signal to all workers.");
+
+        for _ in &mut self.threads {
+            self.sender.send(Message::Terminate).unwrap();
+        }
+
         for worker in &mut self.threads {
-            println!("TCP is shutting Down now");
-            println!("Threads will stop receiving");
-            println!("Shutting down Working {}", worker.id);
+            println!("Shutting down worker {}", worker.id);
+
             if let Some(thread) = worker.thread.take() {
                 thread.join().unwrap();
             }
         }
     }
+}
+
+enum Message {
+    NewJob(Job),
+    Terminate,
 }
