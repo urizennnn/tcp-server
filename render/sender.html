@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Tcp Server</title>
+</head>
+
+<body>
+	<h1>Sender</h1>
+	<input type="text" id="input">
+	<button id="send">Send</button>
+
+	<script>
+		document.getElementById('send').addEventListener('click', function () {
+			var input = document.getElementById('input').value;
+
+			fetch('/send', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({message: input})
+			})
+				.then(response => response.json())
+				.then(data => {
+					console.log('Success:', data);
+					alert('Data sent successfully!');
+				})
+				.catch((error) => {
+					console.error('Error:', error);
+					alert('Error sending data');
+				});
+		});
+	</script>
+</body>
+
+</html>

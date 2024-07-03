@@ -2,7 +2,7 @@ use std::{io::Write, net::TcpStream};
 
 pub fn handle_sender(stream: &mut TcpStream, buffer: &mut [u8]) -> Result<(), std::io::Error> {
     println!(
-        "Receiver function called with: {}",
+        "Sender function called with: {}",
         String::from_utf8_lossy(buffer)
     );
 

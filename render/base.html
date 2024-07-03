@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Document</title>
+	<style>
+		.link {
+			display: inline-block;
+			padding: 10px 20px;
+			margin: 10px;
+			background-color: #007bff;
+			color: white;
+			text-decoration: none;
+			border-radius: 5px;
+		}
+
+		.link:hover {
+			background-color: #0056b3;
+		}
+	</style>
+</head>
+
+<body>
+
+	<h1>Sender</h1>
+	<input type="text" id="input">
+	<button id="send">Send</button>
+
+	<script>
+		document.getElementById('send').addEventListener('click', function () {
+			const input = document.getElementById('input').value;
+			console.log(`Sending: ${input}`);
+
+			// Send data to the backend server
+			fetch('http://localhost:3000/send', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'text/plain'
+				},
+				body: input
+			})
+				.then(response => response.text())
+				.then(data => console.log('Server response:', data))
+				.catch(error => console.error('Error:', error));
+
+			document.getElementById('input').value = '';
+		});
+	</script>
+
+</body>
+
+</html>
