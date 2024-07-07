@@ -13,11 +13,6 @@
 	<p>Received data: <span id="data"></span></p>
 
 	<script>
-		const socket = new WebSocket('ws://localhost:8080');
-
-		socket.onmessage = function (event) {
-			document.getElementById('data').innerText = event.data;
-		};
 	</script>
 </body>
 

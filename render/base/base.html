@@ -4,7 +4,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Document</title>
+	<title>Dynamic Content Update</title>
 	<style>
 		body {
 			font-family: Arial, sans-serif;
@@ -73,8 +73,10 @@
 				},
 				body: JSON.stringify({data: message}) // Correctly stringify the JSON object
 			})
-				.then(response => response.json())
-				.then(data => console.log('Server response:', data))
+				.then(response => response.text())
+				.then(data => {
+					document.body.innerHTML = data; // Update the page with the response
+				})
 				.catch(error => console.error('Error:', error));
 		});
 
@@ -90,8 +92,10 @@
 				},
 				body: JSON.stringify({data: message}) // Correctly stringify the JSON object
 			})
-				.then(response => response.json())
-				.then(data => console.log('Server response:', data))
+				.then(response => response.text())
+				.then(data => {
+					document.body.innerHTML = data; // Update the page with the response
+				})
 				.catch(error => console.error('Error:', error));
 		});
 	</script>

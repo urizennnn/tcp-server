@@ -1,7 +1,12 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, Write},
+    net::TcpStream,
+    path::Path,
+};
 
-pub fn handle_sender() -> Result<String, io::Error> {
-    let content = match fs::read_to_string(Path::new("render/sender.html")) {
+pub fn handle_sender(stream: &mut TcpStream) -> Result<(), io::Error> {
+    let content = match fs::read_to_string(Path::new("render/sender/sender.html")) {
         Ok(content) => content,
         Err(e) => {
             eprintln!("Error reading sender.html: {}", e);
@@ -15,5 +20,7 @@ pub fn handle_sender() -> Result<String, io::Error> {
         content
     );
 
-    Ok(response)
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    Ok(())
 }
