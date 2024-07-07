@@ -60,7 +60,6 @@
 			<button class="button" id="receiver">Receiver</button>
 		</div>
 	</div>
-
 	<script>
 		document.getElementById('receiver').addEventListener('click', function () {
 			const message = "Receiver!";
@@ -70,11 +69,11 @@
 			fetch('http://localhost:8080/receiver', {
 				method: 'POST',
 				headers: {
-					'Content-Type': 'text/plain'
+					'Content-Type': 'application/json'
 				},
-				body: message
+				body: JSON.stringify({data: message}) // Correctly stringify the JSON object
 			})
-				.then(response => response.text())
+				.then(response => response.json())
 				.then(data => console.log('Server response:', data))
 				.catch(error => console.error('Error:', error));
 		});
@@ -87,16 +86,15 @@
 			fetch('http://localhost:8080/sender', {
 				method: 'POST',
 				headers: {
-					'Content-Type': 'text/plain'
+					'Content-Type': 'application/json'
 				},
-				body: message
+				body: JSON.stringify({data: message}) // Correctly stringify the JSON object
 			})
-				.then(response => response.text())
+				.then(response => response.json())
 				.then(data => console.log('Server response:', data))
 				.catch(error => console.error('Error:', error));
 		});
 	</script>
-
 </body>
 
 </html>

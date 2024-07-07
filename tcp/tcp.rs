@@ -1,6 +1,9 @@
-use crate::threadpool::thread::Threadpool;
-
-use super::{handle_receiver::handle_receiver, handle_sender::handle_sender};
+use crate::{
+    tcp::{handle_receiver::handle_receiver, handle_sender::handle_sender},
+    threadpool::thread::Threadpool,
+};
+use regex::Regex;
+use serde::Deserialize;
 use std::{
     fs,
     io::{Read, Write},
@@ -9,9 +12,36 @@ use std::{
     process::exit,
 };
 
+use std::io;
+#[derive(Deserialize, Debug)]
 pub struct TCP {}
 
+#[derive(Deserialize, Debug)]
+pub struct Data {
+    pub data: String,
+}
+
 impl TCP {
+    pub fn conver_to_json(buffer: &[u8]) -> Result<Data, io::Error> {
+        let request = String::from_utf8_lossy(buffer);
+
+        let re = Regex::new(r"\r\n\r\n(.*)").unwrap();
+        let json_payload = if let Some(caps) = re.captures(&request) {
+            caps.get(1).map_or("", |m| m.as_str())
+        } else {
+            ""
+        };
+
+        let json: Data = match serde_json::from_str(json_payload) {
+            Ok(json) => json,
+            Err(e) => {
+                eprintln!("Error parsing JSON: {}", e);
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid JSON"));
+            }
+        };
+
+        return Ok(json);
+    }
     pub fn run(addr: &str) {
         let listener = TcpListener::bind(addr).expect("Failed to bind to address");
         println!("Server listening on {}", addr);
@@ -35,7 +65,7 @@ impl TCP {
             }
         }
 
-        println!("Server shutdown.");
+        eprintln!("Server shutdown.");
     }
 
     pub fn handle_client(mut stream: TcpStream) {
@@ -57,52 +87,92 @@ impl TCP {
             }
 
             let request = String::from_utf8_lossy(&buffer[..input]);
+            let request_line = request.lines().next().unwrap_or("");
 
-            if request.starts_with("GET") {
-                println!("GET function triggered");
-                let content = fs::read_to_string(Path::new("render/base.html")).unwrap();
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
-                    content.len(),
-                    content
-                );
+            if request_line.starts_with("GET") {
+                TCP::handle_get(&mut stream);
+            } else if request_line.starts_with("POST /receiver") {
+                TCP::handle_post_receiver(&mut stream, &buffer[..input]);
+            } else if request_line.starts_with("POST /sender") {
+                TCP::handle_post_sender(&mut stream, &buffer[..input]);
+            } else {
+                println!("Unknown request: {}", request_line);
+                TCP::handle_unknown(&mut stream);
+            }
+        }
+    }
+
+    fn handle_get(stream: &mut TcpStream) {
+        println!("GET function triggered");
+        let content = match fs::read_to_string(Path::new("render/base.html")) {
+            Ok(content) => content,
+            Err(e) => {
+                eprintln!("Error reading file: {}", e);
+                return;
+            }
+        };
+
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}",
+            content.len(),
+            content
+        );
+
+        if let Err(e) = stream.write_all(response.as_bytes()) {
+            eprintln!("Error writing response: {}", e);
+        }
+        if let Err(e) = stream.flush() {
+            eprintln!("Error flushing stream: {}", e);
+        }
+    }
+
+    fn handle_post_receiver(stream: &mut TcpStream, buffer: &[u8]) {
+        println!("Receiver function triggered");
+        let json = TCP::conver_to_json(buffer).unwrap();
+        println!("{:?}", json.data);
+
+        if let Err(e) = handle_receiver(stream, buffer) {
+            eprintln!("Error handling receiver: {}", e);
+            TCP::send_internal_error(stream);
+        }
+    }
+
+    fn handle_post_sender(stream: &mut TcpStream, buffer: &[u8]) {
+        println!("Sender function triggered");
+        let json = TCP::conver_to_json(buffer).unwrap();
+        println!("{:?}", json.data);
+
+        match handle_sender() {
+            Ok(response) => {
                 if let Err(e) = stream.write_all(response.as_bytes()) {
-                    eprintln!("Error writing response: {}", e);
-                    break;
+                    eprintln!("Error writing sender response: {}", e);
                 }
                 if let Err(e) = stream.flush() {
-                    eprintln!("Error flushing stream: {}", e);
-                    break;
+                    eprintln!("Error flushing sender response: {}", e);
                 }
-            } else if request.starts_with("POST /receiver") {
-                println!("Receiver function triggered");
-                if let Err(e) = handle_receiver(&mut stream, &buffer[..input]) {
-                    eprintln!("Error handling receiver: {}", e);
-                }
-            } else if request.starts_with("POST /sender") {
-                println!("Sender function triggered");
-                match handle_sender(&buffer) {
-                    Ok(response) => {
-                        if let Err(e) = stream.write_all(response.as_bytes()) {
-                            eprintln!("Error writing sender response: {}", e);
-                        }
-                        if let Err(e) = stream.flush() {
-                            eprintln!("Error flushing sender response: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Error handling sender: {}", e);
-                        let error_response = format!(
-                "HTTP/1.1 500 Internal Server Error\r\nContent-Length: {}\r\n\r\nInternal Server Error",
-                21
-            );
-                        let _ = stream.write_all(error_response.as_bytes());
-                        let _ = stream.flush();
-                    }
-                }
-            } else {
-                println!("Unknown request: {}", request);
             }
+            Err(e) => {
+                eprintln!("Error handling sender: {}", e);
+                TCP::send_internal_error(stream);
+            }
+        }
+    }
+
+    fn handle_unknown(stream: &mut TcpStream) {
+        let response = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+        if let Err(e) = stream.write_all(response.as_bytes()) {
+            eprintln!("Error writing unknown request response: {}", e);
+        }
+    }
+
+    fn send_internal_error(stream: &mut TcpStream) {
+        let error_response =
+            "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 21\r\n\r\nInternal Server Error";
+        if let Err(e) = stream.write_all(error_response.as_bytes()) {
+            eprintln!("Error writing internal error response: {}", e);
+        }
+        if let Err(e) = stream.flush() {
+            eprintln!("Error flushing internal error response: {}", e);
         }
     }
 }
