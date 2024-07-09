@@ -4,55 +4,12 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Dynamic Content Update</title>
-	<style>
-		body {
-			font-family: Arial, sans-serif;
-			background-color: #f4f4f4;
-			margin: 0;
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			height: 100vh;
-		}
-
-		.container {
-			background-color: white;
-			padding: 20px;
-			border-radius: 8px;
-			box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-			text-align: center;
-		}
-
-		h1 {
-			margin-bottom: 20px;
-		}
-
-		.buttons {
-			display: flex;
-			justify-content: space-around;
-		}
-
-		.button {
-			padding: 10px 20px;
-			margin: 10px;
-			background-color: #007bff;
-			color: white;
-			border: none;
-			border-radius: 5px;
-			cursor: pointer;
-			transition: background-color 0.3s;
-			font-size: 16px;
-		}
-
-		.button:hover {
-			background-color: #0056b3;
-		}
-	</style>
+	<script defer src="/render/base/base.js"></script>
+	<link rel="stylesheet" href="/styles.css">
+	<title>TCSHARE</title>
 </head>
 
 <body>
-
 	<div class="container">
 		<h1>Sender or Receiver</h1>
 		<div class="buttons">
@@ -60,45 +17,6 @@
 			<button class="button" id="receiver">Receiver</button>
 		</div>
 	</div>
-	<script>
-		document.getElementById('receiver').addEventListener('click', function () {
-			const message = "Receiver!";
-			console.log(`Sending to receiver: ${message}`);
-
-			// Send data to the backend server
-			fetch('http://localhost:8080/receiver', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({data: message}) // Correctly stringify the JSON object
-			})
-				.then(response => response.text())
-				.then(data => {
-					document.body.innerHTML = data; // Update the page with the response
-				})
-				.catch(error => console.error('Error:', error));
-		});
-
-		document.getElementById('sender').addEventListener('click', function () {
-			const message = "Sender!";
-			console.log(`Sending to sender: ${message}`);
-
-			// Send data to the backend server
-			fetch('http://localhost:8080/sender', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({data: message}) // Correctly stringify the JSON object
-			})
-				.then(response => response.text())
-				.then(data => {
-					document.body.innerHTML = data; // Update the page with the response
-				})
-				.catch(error => console.error('Error:', error));
-		});
-	</script>
 </body>
 
 </html>
