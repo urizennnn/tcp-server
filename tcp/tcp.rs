@@ -1,45 +1,66 @@
-use crate::threadpool::thread::Threadpool;
-use std::{
-    io::{Read, Write},
-    net::{TcpListener, TcpStream},
-    process::exit,
-};
+use crate::{http::put::put, threadpool::thread::Threadpool};
+use std::process::exit;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 
 pub struct TCP;
 
 impl TCP {
-    pub fn run(addr: &str) {
-        let listener = TcpListener::bind(addr).expect("Failed to bind to address");
+    pub async fn run(addr: &str) {
+        let listener = TcpListener::bind(addr)
+            .await
+            .expect("Failed to bind to address");
         println!("Server listening on {}", addr);
-
-        let pool = Threadpool::build(2).unwrap_or_else(|e| {
-            eprintln!("Failed to build thread pool: {}", e);
+        let pool = Threadpool::build(6).unwrap_or_else(|_| {
+            eprintln!("Failed to create thread pool");
             exit(1);
         });
 
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
+        loop {
+            match listener.accept().await {
+                Ok((stream, _)) => {
                     pool.execute(move || {
-                        TCP::handle_client(stream);
+                        tokio::spawn(async move {
+                            TCP::handle_client(stream).await;
+                        });
                     });
                 }
                 Err(e) => eprintln!("Connection failed: {}", e),
             }
         }
-
-        eprintln!("Server shutdown.");
     }
 
-    fn handle_client(mut stream: TcpStream) {
+    async fn handle_client(mut stream: TcpStream) {
         let mut buffer = [0; 1024];
-        stream
-            .read(&mut buffer)
-            .expect("Failed to read or get client");
-        let request = String::from_utf8_lossy(&buffer[..]);
-        println!("Received request{}", request);
-        stream.write_all(b"Hello from TCSHARE").unwrap();
-        stream.flush().unwrap();
-        return;
+        if let Err(e) = stream.read(&mut buffer).await {
+            eprintln!("Failed to read from client: {}", e);
+            return;
+        }
+
+        // Trim null characters and whitespace
+        let request = String::from_utf8_lossy(&buffer[..])
+            .trim_matches(char::from(0))
+            .trim()
+            .to_string();
+
+        match request.as_str() {
+            "PUT" => {
+                put(&mut stream).await;
+                if let Err(e) = stream.write_all(b"Testing").await {
+                    eprintln!("Failed to write 'Testing': {}", e);
+                    return;
+                }
+                if let Err(e) = stream.flush().await {
+                    eprintln!("Failed to flush stream: {}", e);
+                    return;
+                }
+            }
+            _ => {
+                let response = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
+                if let Err(e) = stream.write_all(response.as_bytes()).await {
+                    eprintln!("Failed to write response: {}", e);
+                }
+            }
+        }
     }
 }

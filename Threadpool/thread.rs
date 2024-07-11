@@ -8,6 +8,7 @@ use std::{
     },
     thread,
 };
+use tokio::runtime::Runtime;
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
@@ -63,22 +64,29 @@ impl Threadpool {
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<Receiver<Message>>>) -> Worker {
-        let thread = thread::spawn(move || loop {
-            let message = receiver.lock().unwrap().recv();
+        let thread = thread::spawn(move || {
+            let rt = Runtime::new().expect("Failed to create Tokio runtime");
 
-            match message {
-                Ok(Message::NewJob(job)) => {
-                    println!("Worker {id} got a job; executing.");
+            loop {
+                let message = receiver.lock().unwrap().recv();
 
-                    job();
-                }
-                Ok(Message::Terminate) => {
-                    println!("Worker {id} was told to terminate.");
-                    break;
-                }
-                Err(_) => {
-                    println!("Worker {id} disconnected; shutting down.");
-                    break;
+                match message {
+                    Ok(Message::NewJob(job)) => {
+                        println!("Worker {id} got a job; executing.");
+
+                        // Execute the job within the Tokio runtime
+                        rt.block_on(async {
+                            job();
+                        });
+                    }
+                    Ok(Message::Terminate) => {
+                        println!("Worker {id} was told to terminate.");
+                        break;
+                    }
+                    Err(_) => {
+                        println!("Worker {id} disconnected; shutting down.");
+                        break;
+                    }
                 }
             }
         });
