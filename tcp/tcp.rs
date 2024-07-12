@@ -32,33 +32,43 @@ impl TCP {
 
     async fn handle_client(mut stream: TcpStream) {
         let mut buffer = [0; 1024];
-        if let Err(e) = stream.read(&mut buffer).await {
-            eprintln!("Failed to read from client: {}", e);
-            return;
-        }
+        loop {
+            match stream.read(&mut buffer).await {
+                Ok(n) if n > 0 => {
+                    let request = String::from_utf8_lossy(&buffer[..n])
+                        .trim_matches(char::from(0))
+                        .trim()
+                        .to_string();
+                    println!("Received request: {}", request);
 
-        // Trim null characters and whitespace
-        let request = String::from_utf8_lossy(&buffer[..])
-            .trim_matches(char::from(0))
-            .trim()
-            .to_string();
+                    match request.as_str() {
+                        request if request.starts_with("PUT") => {
+                            put(&mut stream).await;
+                            if let Err(e) = stream.write_all(b"PUT request handled").await {
+                                eprintln!("Failed to write 'PUT request handled': {}", e);
+                                return;
+                            }
+                        }
+                        _ => {
+                            if let Err(e) = stream.write_all(b"Invalid request").await {
+                                eprintln!("Failed to write 'Invalid request': {}", e);
+                                return;
+                            }
+                        }
+                    }
 
-        match request.as_str() {
-            "PUT" => {
-                put(&mut stream).await;
-                if let Err(e) = stream.write_all(b"Testing").await {
-                    eprintln!("Failed to write 'Testing': {}", e);
-                    return;
+                    if let Err(e) = stream.flush().await {
+                        eprintln!("Failed to flush stream: {}", e);
+                        return;
+                    }
                 }
-                if let Err(e) = stream.flush().await {
-                    eprintln!("Failed to flush stream: {}", e);
-                    return;
+                Ok(_) => {
+                    println!("Connection closed by client");
+                    break;
                 }
-            }
-            _ => {
-                let response = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
-                if let Err(e) = stream.write_all(response.as_bytes()).await {
-                    eprintln!("Failed to write response: {}", e);
+                Err(e) => {
+                    eprintln!("Failed to read from client: {}", e);
+                    return;
                 }
             }
         }
