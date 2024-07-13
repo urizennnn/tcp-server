@@ -1,18 +1,18 @@
-use crate::{http::put::put, threadpool::thread::Threadpool};
+use super::allowed_request::AllowedRequest;
+use crate::http::methods::list;
+use crate::http::put::put;
+use crate::threadpool::thread::Threadpool;
 use std::process::exit;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use super::allowed_request::AllowedRequest;
-
 pub struct TCP;
 
 impl TCP {
-    pub async fn run(addr: &str) {
-        let listener = TcpListener::bind(addr)
-            .await
-            .expect("Failed to bind to address");
+    pub async fn run(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let listener = TcpListener::bind(addr).await?;
         println!("Server listening on {}", addr);
+
         let pool = Threadpool::build(6).unwrap_or_else(|_| {
             eprintln!("Failed to create thread pool");
             exit(1);
@@ -21,9 +21,11 @@ impl TCP {
         loop {
             match listener.accept().await {
                 Ok((stream, _)) => {
-                    pool.execute(move || {
+                    pool.execute(|| {
                         tokio::spawn(async move {
-                            TCP::handle_client(stream).await;
+                            if let Err(e) = TCP::handle_client(stream).await {
+                                eprintln!("Error handling client: {}", e);
+                            }
                         });
                     });
                 }
@@ -32,46 +34,37 @@ impl TCP {
         }
     }
 
-    async fn handle_client(mut stream: TcpStream) {
-        let mut buffer = [0; 1024];
+    async fn handle_client(mut stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
+        let mut buffer = vec![0; 5_242_880];
+
         loop {
-            match stream.read(&mut buffer).await {
-                Ok(n) if n > 0 => {
-                    let request = String::from_utf8_lossy(&buffer[..n])
-                        .trim_matches(char::from(0))
-                        .trim()
-                        .to_string();
+            let n = stream.read(&mut buffer).await?;
+            if n == 0 {
+                println!("Connection closed by client");
+                break;
+            }
 
-                    match AllowedRequest::from_str(&request) {
-                        Some(AllowedRequest::Put) => {
-                            put(&mut stream).await;
-                            if let Err(e) = stream.write_all(b"PUT request handled").await {
-                                eprintln!("Failed to write 'PUT request handled': {}", e);
-                                return;
-                            }
-                        }
-                        _ => {
-                            if let Err(e) = stream.write_all(b" Invalid request").await {
-                                eprintln!("Failed to write 'Invalid request': {}", e);
-                                return;
-                            }
-                        }
-                    }
+            let request = String::from_utf8_lossy(&buffer[..n])
+                .trim_matches(char::from(0))
+                .trim()
+                .to_string();
 
-                    if let Err(e) = stream.flush().await {
-                        eprintln!("Failed to flush stream: {}", e);
-                        return;
-                    }
+            match AllowedRequest::from_str(&request) {
+                Some(AllowedRequest::Put) => {
+                    put(&mut stream).await;
+                    stream.write_all(b"PUT request handled").await?;
                 }
-                Ok(_) => {
-                    println!("Connection closed by client");
-                    break;
+                Some(AllowedRequest::LIST) => {
+                    list::list_storage(&mut stream).await?;
                 }
-                Err(e) => {
-                    eprintln!("Failed to read from client: {}", e);
-                    return;
+                _ => {
+                    stream.write_all(b"Invalid request").await?;
                 }
             }
+
+            stream.flush().await?;
         }
+
+        Ok(())
     }
 }

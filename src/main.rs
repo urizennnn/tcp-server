@@ -2,5 +2,5 @@ use tcp::tcp::tcp::TCP;
 
 #[tokio::main]
 async fn main() {
-    TCP::run("localhost:8080").await;
+    TCP::run("localhost:8080").await.unwrap();
 }
