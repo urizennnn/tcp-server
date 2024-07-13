@@ -3,6 +3,8 @@ use std::process::exit;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
+use super::allowed_request::AllowedRequest;
+
 pub struct TCP;
 
 impl TCP {
@@ -39,10 +41,9 @@ impl TCP {
                         .trim_matches(char::from(0))
                         .trim()
                         .to_string();
-                    println!("Received request: {}", request);
 
-                    match request.as_str() {
-                        request if request.starts_with("PUT") => {
+                    match AllowedRequest::from_str(&request) {
+                        Some(AllowedRequest::Put) => {
                             put(&mut stream).await;
                             if let Err(e) = stream.write_all(b"PUT request handled").await {
                                 eprintln!("Failed to write 'PUT request handled': {}", e);
@@ -50,7 +51,7 @@ impl TCP {
                             }
                         }
                         _ => {
-                            if let Err(e) = stream.write_all(b"Invalid request").await {
+                            if let Err(e) = stream.write_all(b" Invalid request").await {
                                 eprintln!("Failed to write 'Invalid request': {}", e);
                                 return;
                             }
