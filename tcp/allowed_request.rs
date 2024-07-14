@@ -5,7 +5,7 @@ pub enum AllowedRequest {
     Get,
     Put,
     Delete,
-    LIST,
+    List,
 }
 
 impl fmt::Display for AllowedRequest {
@@ -14,7 +14,7 @@ impl fmt::Display for AllowedRequest {
             AllowedRequest::Get => write!(f, "GET"),
             AllowedRequest::Put => write!(f, "PUT"),
             AllowedRequest::Delete => write!(f, "DELETE"),
-            AllowedRequest::LIST => write!(f, "LIST"),
+            AllowedRequest::List => write!(f, "LIST"),
         }
     }
 }
@@ -23,7 +23,7 @@ impl AllowedRequest {
     pub fn from_str(request: &str) -> Option<Self> {
         match request {
             req if req.starts_with("PUT") => Some(AllowedRequest::Put),
-            req if req.starts_with("LIST") => Some(AllowedRequest::LIST),
+            req if req.starts_with("LIST") => Some(AllowedRequest::List),
             _ => None,
         }
     }
