@@ -49,7 +49,7 @@ impl TCP {
                 .to_string();
 
             match AllowedRequest::from_str(&request) {
-                Some(AllowedRequest::UPLOAD) => {
+                Some(AllowedRequest::Put) => {
                     put(&mut stream, &mut buffer).await?;
                 }
                 Some(AllowedRequest::LIST) => {
