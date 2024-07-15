@@ -62,12 +62,7 @@ impl TCP {
                 Some(AllowedRequest::Get) => {
                     println!("Processing GET request");
                 }
-                None => {
-                    println!("Unsupported request: {}", request);
-                    stream.write_all(b"Unsupported request\n").await?;
-                    stream.flush().await?;
-                    // return Err("Unsupported request: {}".into());
-                }
+                None => {}
             }
 
             stream.flush().await?;
