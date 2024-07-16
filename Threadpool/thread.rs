@@ -1,4 +1,5 @@
 use core::fmt;
+use log::{info, warn};
 use std::{
     error::Error,
     fmt::Debug,
@@ -72,7 +73,7 @@ impl Worker {
 
                 match message {
                     Ok(Message::NewJob(job)) => {
-                        println!("Worker {id} got a job; executing.");
+                        info!("Worker {id} got a job; executing.");
 
                         // Execute the job within the Tokio runtime
                         rt.block_on(async {
@@ -80,11 +81,11 @@ impl Worker {
                         });
                     }
                     Ok(Message::Terminate) => {
-                        println!("Worker {id} was told to terminate.");
+                        info!("Worker {id} was told to terminate.");
                         break;
                     }
                     Err(_) => {
-                        println!("Worker {id} disconnected; shutting down.");
+                        info!("Worker {id} disconnected; shutting down.");
                         break;
                     }
                 }
@@ -100,14 +101,14 @@ impl Worker {
 
 impl Drop for Threadpool {
     fn drop(&mut self) {
-        println!("Sending termination signal to all workers.");
+        warn!("Sending termination signal to all workers.");
 
         for _ in &mut self.threads {
             self.sender.send(Message::Terminate).unwrap();
         }
 
         for worker in &mut self.threads {
-            println!("Shutting down worker {}", worker.id);
+            warn!("Shutting down worker {}", worker.id);
 
             if let Some(thread) = worker.thread.take() {
                 thread.join().unwrap();

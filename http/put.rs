@@ -1,4 +1,5 @@
 use crate::http::storage::STORAGE_PATH;
+use log::{info, warn};
 use std::error::Error;
 use std::path::Path;
 use tokio::{
@@ -17,7 +18,6 @@ pub async fn put(stream: &mut TcpStream, buffer: &mut [u8]) -> Result<(), Box<dy
         .trim()
         .to_string();
     let parts: Vec<&str> = buf_string.split_whitespace().collect();
-    println!("{parts:?}");
 
     if parts.len() != 3 || parts[0] != "UPLOAD" {
         return Err("Invalid upload command".into());
@@ -27,7 +27,7 @@ pub async fn put(stream: &mut TcpStream, buffer: &mut [u8]) -> Result<(), Box<dy
     let full_path = format!("{}{}", STORAGE_PATH, file_name);
     let file_size: u64 = parts[2].parse()?;
 
-    println!("Uploading file: {} ({} bytes)", file_name, file_size);
+    info!("Uploading file: {} ({} bytes)", file_name, file_size);
 
     if let Some(parent) = Path::new(&full_path).parent() {
         create_dir_all(parent).await?;
@@ -40,13 +40,14 @@ pub async fn put(stream: &mut TcpStream, buffer: &mut [u8]) -> Result<(), Box<dy
         let to_read = std::cmp::min(buffer.len() as u64, remaining) as usize;
         let bytes_read = stream.read(&mut buffer[..to_read]).await?;
         if bytes_read == 0 {
+            warn!("Unexpected end of file");
             return Err("Unexpected end of file".into());
         }
         file.write_all(&buffer[..bytes_read]).await?;
         remaining -= bytes_read as u64;
     }
 
-    println!("File upload completed");
+    info!("File upload completed");
     stream.write_all(b"File uploaded successfully\n").await?;
     stream.flush().await?;
     Ok(())

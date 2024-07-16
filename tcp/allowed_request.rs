@@ -20,10 +20,12 @@ impl fmt::Display for AllowedRequest {
 }
 
 impl AllowedRequest {
-    pub fn from_str(request: &str) -> Option<Self> {
+    pub fn from_str_slice(request: &str) -> Option<Self> {
         match request {
             req if req.starts_with("PUT") => Some(AllowedRequest::Put),
             req if req.starts_with("LIST") => Some(AllowedRequest::List),
+            req if req.starts_with("DELETE") => Some(AllowedRequest::Delete),
+            req if req.starts_with("GET") => Some(AllowedRequest::Get),
             _ => None,
         }
     }
